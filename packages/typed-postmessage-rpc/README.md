@@ -1,17 +1,17 @@
-# react-use-query-params
+# typed-postmessage-rpc
 
-[![npm version](https://shields.io/npm/v/react-use-query-params.svg)](https://www.npmjs.com/package/react-use-query-params)
-[![npm downloads](https://shields.io/npm/dm/react-use-query-params.svg)](https://www.npmjs.com/package/react-use-query-params)
-[![license](https://shields.io/npm/l/react-use-query-params.svg)](https://www.npmjs.com/package/react-use-query-params)
+[![npm version](https://shields.io/npm/v/typed-postmessage-rpc.svg)](https://www.npmjs.com/package/typed-postmessage-rpc)
+[![npm downloads](https://shields.io/npm/dm/typed-postmessage-rpc.svg)](https://www.npmjs.com/package/typed-postmessage-rpc)
+[![license](https://shields.io/npm/l/typed-postmessage-rpc.svg)](https://www.npmjs.com/package/typed-postmessage-rpc)
 
 ## Installation
 
 ```bash
 # npm
-npm install --save react-use-query-params
+npm install --save typed-postmessage-rpc
 
 # pnpm
-pnpm install --save react-use-query-params
+pnpm install --save typed-postmessage-rpc
 ```
 
 ## Usage
