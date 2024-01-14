@@ -27,14 +27,14 @@ jobs:
           # cause conflicts with other packages.
           create-tag: false
           version-command: |
-            jq -r '.version' packages/react-use-query-params/package.json
+            jq -r '.version' packages/typed-postmessage-rpc/package.json
 
       - name: Publish to NPM
         if: steps.detect-new-version.outputs.previous-version != steps.detect-new-version.outputs.current-version
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          cd packages/react-use-query-params/
+          cd packages/typed-postmessage-rpc/
           echo "Publishing to NPM..."
           sudo npm install -g pnpm
 
