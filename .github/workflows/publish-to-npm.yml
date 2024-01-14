@@ -1,4 +1,4 @@
-name: Publish `react-use-query-params` to NPM
+name: Publish `typed-postmessage-rpc` to NPM
 on:
   push:
     branches:
