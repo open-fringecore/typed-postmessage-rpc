@@ -1,4 +1,5 @@
-import {ServiceType, service} from "typed-postmessage-rpc";
+import {service} from 'typed-postmessage-rpc';
+import {ServiceType} from 'typed-postmessage-rpc';
 
 export const mainService = service({
     hello: async (name: string) => {
@@ -7,7 +8,7 @@ export const mainService = service({
     helloSync: (name: string) => {
         return `Hello ${name}! (this is sync)`;
     },
-    tomato: () => {}
+    tomato: () => {},
 });
 
 export type MainServiceType = ServiceType<typeof mainService>;
