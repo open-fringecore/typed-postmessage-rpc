@@ -1,6 +1,6 @@
 {
     "name": "typed-postmessage-rpc",
-    "version": "1.0.6",
+    "version": "1.1.0",
     "description": "Strongly typed RPC framework inpired by tRPC for web workers, iframes & windows.",
     "main": "dist/index.mjs",
     "type": "module",
