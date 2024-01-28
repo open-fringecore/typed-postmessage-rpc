@@ -107,7 +107,7 @@ export async function connect<ROUTER extends TRootRouter<TRouter>>({
     enforceTargetOrigin = false,
     timeout = 5_000,
 }: {
-    on: Window | Worker | MessagePort;
+    on: Window | Worker | MessagePort | DedicatedWorkerGlobalScope;
     virtualPort?: number;
     enforceTargetOrigin?: false | string;
     timeout?: number;
@@ -182,8 +182,8 @@ export async function connect<ROUTER extends TRootRouter<TRouter>>({
             on.postMessage(message, '*', [transferablePort]);
         }
     } else if (
-        on instanceof Worker ||
-        on instanceof MessagePort ||
+        (typeof Worker !== 'undefined' && on instanceof Worker) ||
+        (typeof MessagePort !== 'undefined' && on instanceof MessagePort) ||
         (typeof DedicatedWorkerGlobalScope !== 'undefined' &&
             on instanceof DedicatedWorkerGlobalScope)
     ) {
