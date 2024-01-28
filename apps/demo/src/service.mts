@@ -1,5 +1,5 @@
-import {service, observable} from 'typed-postmessage-rpc';
-import {ServiceType} from 'typed-postmessage-rpc';
+import {service, observable} from 'typed-postmessage-rpc/server';
+import {ServiceType} from 'typed-postmessage-rpc/server';
 
 export const mainService = service({
     hello: async (name: string) => {

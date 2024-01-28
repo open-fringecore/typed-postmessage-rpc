@@ -1,4 +1,4 @@
-import {
+import type {
     TConnectMessage,
     TInvokeMessage,
     TObserveMessage,
@@ -6,7 +6,7 @@ import {
     TResolveMessage,
 } from '../types/messages.mjs';
 
-import {TProcedure, TRootRouter, TRouter} from '../types/server.mjs';
+import type {TProcedure, TRootRouter, TRouter} from '../types/server.mjs';
 
 export function service<ROUTES extends TRouter>(
     routes: ROUTES,

@@ -1,7 +1,7 @@
 import {useEffect} from 'react';
 import {MainServiceType} from './service.mjs';
 import {worker} from './workerManager.mjs';
-import {connect} from 'typed-postmessage-rpc';
+import {connect} from 'typed-postmessage-rpc/client';
 
 function MainForm() {
     useEffect(() => {

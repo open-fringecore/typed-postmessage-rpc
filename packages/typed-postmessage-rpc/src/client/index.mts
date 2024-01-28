@@ -1,6 +1,6 @@
-import {TRootRouter, TRouter} from '../types/server.mjs';
+import type {TRootRouter, TRouter} from '../types/server.mjs';
 
-import {
+import type {
     TConnectMessage,
     TDisposeObserveMessage,
     TInvokeMessage,
@@ -9,11 +9,11 @@ import {
     TResolveMessage,
 } from '../types/messages.mjs';
 
+import type {TContext} from '../types/invocation-context.mjs';
+
+import type {TRouted} from '../types/client.mjs';
+
 import {Evt as Event} from 'evt';
-
-import {TContext} from '../types/invocation-context.mjs';
-
-import {TRouted} from '../types/client.mjs';
 
 const stubFunc = () => {};
 const stubObj = {};
