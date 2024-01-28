@@ -181,7 +181,12 @@ export async function connect<ROUTER extends TRootRouter<TRouter>>({
         } else {
             on.postMessage(message, '*', [transferablePort]);
         }
-    } else if (on instanceof Worker || on instanceof MessagePort) {
+    } else if (
+        on instanceof Worker ||
+        on instanceof MessagePort ||
+        (typeof DedicatedWorkerGlobalScope !== 'undefined' &&
+            on instanceof DedicatedWorkerGlobalScope)
+    ) {
         on.postMessage(message, [transferablePort]);
     }
 
