@@ -2,7 +2,9 @@ import {TRootRouter, TRouter} from '../types/server.mjs';
 
 import {
     TConnectMessage,
+    TDisposeObserveMessage,
     TInvokeMessage,
+    TObserveMessage,
     TRejectMessage,
     TResolveMessage,
 } from '../types/messages.mjs';
@@ -27,6 +29,44 @@ function proxy(path: string[], context: TContext, stub: any = stubObj): any {
 
             if (property === 'invoke') {
                 return proxy([...path], context, stubFunc);
+            } else if (property === 'observe') {
+                return (...args: any[]) => {
+                    // HANDLER RECEIVER
+                    return (handler: (data: any) => void) => {
+                        const currentSeq = context.seq++;
+
+                        const message: TObserveMessage = {
+                            __isTypedPostMessageRPCMessage__: true,
+                            type: 'observe',
+
+                            seq: currentSeq,
+
+                            path: path,
+                            args: args,
+                        };
+
+                        context.callbacks[currentSeq] = (response) => {
+                            if (response.status === 'resolved') {
+                                handler(response.returnValue);
+                            }
+                        };
+
+                        context.port.postMessage(message);
+
+                        // DISPOSER FUNCTION
+                        return () => {
+                            delete context.callbacks[currentSeq];
+
+                            const message: TDisposeObserveMessage = {
+                                __isTypedPostMessageRPCMessage__: true,
+                                type: 'dispose-observer',
+                                seq: currentSeq,
+                            };
+
+                            context.port.postMessage(message);
+                        };
+                    };
+                };
             } else {
                 return proxy([...path, property], context);
             }

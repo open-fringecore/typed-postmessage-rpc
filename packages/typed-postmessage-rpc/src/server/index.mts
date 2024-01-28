@@ -1,6 +1,7 @@
 import {
     TConnectMessage,
     TInvokeMessage,
+    TObserveMessage,
     TRejectMessage,
     TResolveMessage,
 } from '../types/messages.mjs';
@@ -34,6 +35,19 @@ function findProcedure(
             'can not find the procedure as path is pre-terminated with a non-object',
         );
     }
+}
+
+export type EmitterCleanupProcedure = () => void;
+export type Emitter<EMIT_TYPE extends any> = (
+    emit: (data: EMIT_TYPE) => void,
+) => EmitterCleanupProcedure;
+
+export class Observable<EMIT_TYPE extends any> {
+    constructor(public emitter: Emitter<EMIT_TYPE>) {}
+}
+
+export function observable<EMIT_TYPE extends any>(emitter: Emitter<EMIT_TYPE>) {
+    return new Observable(emitter);
 }
 
 export function serve<ROUTES extends TRouter>({
@@ -84,12 +98,28 @@ export function serve<ROUTES extends TRouter>({
 
             const port = message.ports[0];
 
+            const cleanupProcedures: {
+                [key: number]: () => void;
+            } = {};
+
             port.onmessage = async (message) => {
-                if (message.data.type !== 'invoke') {
+                if (message.data.type === 'dispose-observer') {
+                    if (cleanupProcedures[message.data.seq]) {
+                        cleanupProcedures[message.data.seq]();
+                        delete cleanupProcedures[message.data.seq];
+                    }
+
                     return;
                 }
 
-                const data: TInvokeMessage = message.data;
+                if (
+                    message.data.type !== 'invoke' &&
+                    message.data.type !== 'observe'
+                ) {
+                    return;
+                }
+
+                const data: TInvokeMessage | TObserveMessage = message.data;
 
                 const func = (() => {
                     try {
@@ -111,19 +141,34 @@ export function serve<ROUTES extends TRouter>({
                 }
 
                 try {
-                    const returnedValue = func(...data.args);
+                    if (message.data.type === 'invoke') {
+                        const returnedValue = func(...data.args);
 
-                    const resolvedValue =
-                        returnedValue instanceof Promise
-                            ? await returnedValue
-                            : returnedValue;
+                        const resolvedValue =
+                            returnedValue instanceof Promise
+                                ? await returnedValue
+                                : returnedValue;
 
-                    port.postMessage({
-                        __isTypedPostMessageRPCMessage__: true,
-                        type: 'resolve',
-                        seq: data.seq,
-                        returnValue: resolvedValue,
-                    } as TResolveMessage);
+                        port.postMessage({
+                            __isTypedPostMessageRPCMessage__: true,
+                            type: 'resolve',
+                            seq: data.seq,
+                            returnValue: resolvedValue,
+                        } as TResolveMessage);
+                    } else {
+                        const observable: Observable<any> = func(...data.args);
+
+                        cleanupProcedures[data.seq] = observable.emitter(
+                            (value: any) => {
+                                port.postMessage({
+                                    __isTypedPostMessageRPCMessage__: true,
+                                    type: 'resolve',
+                                    seq: data.seq,
+                                    returnValue: value,
+                                } as TResolveMessage);
+                            },
+                        );
+                    }
                 } catch (error) {
                     port.postMessage({
                         __isTypedPostMessageRPCMessage__: true,

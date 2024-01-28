@@ -10,8 +10,20 @@ function MainForm() {
                 on: worker,
             });
 
-            const result = await client.helloSync.invoke('Omran');
-            console.log(result);
+            // const result = await client.helloSync.invoke('Omran');
+            // console.log(result);
+
+            const dispose = client.randomStream.observe(
+                20,
+                50,
+            )((data) => {
+                console.log(Math.round(data));
+            });
+
+            setTimeout(() => {
+                console.log('client: disposing.');
+                dispose();
+            }, 5_000);
         })();
     }, []);
 

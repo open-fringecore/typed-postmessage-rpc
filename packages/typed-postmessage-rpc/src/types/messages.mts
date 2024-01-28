@@ -3,6 +3,7 @@ export type TConnectMessage = {
     type: 'connect';
     virtualPort: number;
 };
+
 export type TInvokeMessage = {
     __isTypedPostMessageRPCMessage__: true;
     type: 'invoke';
@@ -10,6 +11,21 @@ export type TInvokeMessage = {
     path: string[];
     args: any[];
 };
+
+export type TObserveMessage = {
+    __isTypedPostMessageRPCMessage__: true;
+    type: 'observe';
+    seq: number;
+    path: string[];
+    args: any[];
+};
+
+export type TDisposeObserveMessage = {
+    __isTypedPostMessageRPCMessage__: true;
+    type: 'dispose-observer';
+    seq: number;
+};
+
 export type TResolveMessage = {
     __isTypedPostMessageRPCMessage__: true;
     type: 'resolve';
@@ -17,6 +33,7 @@ export type TResolveMessage = {
     seq: number;
     returnValue: any;
 };
+
 export type TRejectMessage = {
     __isTypedPostMessageRPCMessage__: true;
     type: 'reject';
