@@ -1,3 +1,5 @@
+import {Evt as Event} from 'evt';
+
 export const name = 'typed-postmessage-rpc';
 
 export type TProcedure<INPUT extends any[] = any[], OUTPUT extends any = any> =
@@ -25,28 +27,49 @@ export type ServiceType<ROUTER extends TRootRouter<TRouter>> = ROUTER;
 export type TRouted<ROUTES extends TRouter> = {
     [KEY in keyof ROUTES]: ROUTES[KEY] extends TProcedure
         ? ReturnType<ROUTES[KEY]> extends Promise<any>
-            ? ROUTES[KEY]
-            : (
-                  ...args: Parameters<ROUTES[KEY]>
-              ) => Promise<ReturnType<ROUTES[KEY]>>
+            ? {
+                  invoke: ROUTES[KEY];
+              }
+            : {
+                  invoke: (
+                      ...args: Parameters<ROUTES[KEY]>
+                  ) => Promise<ReturnType<ROUTES[KEY]>>;
+              }
         : ROUTES[KEY] extends TRouter
         ? TRouted<ROUTES[KEY]>
         : never;
 };
 
-let seq = 0;
-
 type TContext = {
-    receiveOn: Window | Worker | MessagePort | DedicatedWorkerGlobalScope;
-    sendOn: Window | Worker | MessagePort | DedicatedWorkerGlobalScope;
+    virtualPort: number;
+    on: Window | Worker | MessagePort | DedicatedWorkerGlobalScope;
+    callbacks: {
+        [key: number]: (
+            response:
+                | {
+                      status: 'resolved';
+                      returnValue: any;
+                  }
+                | {
+                      status: 'rejected';
+                      error: any;
+                  },
+        ) => void;
+    };
+    port: MessagePort;
+    seq: number;
+};
+
+type TConnectMessage = {
+    __isTypedPostMessageRPCMessage__: true;
+    type: 'connect';
+    virtualPort: number;
 };
 
 type TInvokeMessage = {
     __isTypedPostMessageRPCMessage__: true;
     type: 'invoke';
-
     seq: number;
-
     path: string[];
     args: any[];
 };
@@ -67,26 +90,11 @@ type TRejectMessage = {
     error: any;
 };
 
-const callbacks: {
-    [key: number]: (
-        response:
-            | {
-                  status: 'resolved';
-                  returnValue: any;
-              }
-            | {
-                  status: 'rejected';
-                  error: any;
-              },
-    ) => void;
-} = {};
-
 const stubFunc = () => {};
+const stubObj = {};
 
-function proxy(path: string[], context: TContext): any {
-    // console.log();
-
-    return new Proxy(stubFunc, {
+function proxy(path: string[], context: TContext, stub: any = stubObj): any {
+    return new Proxy(stub, {
         get(target, property) {
             if (typeof property !== 'string') {
                 throw new Error(
@@ -94,11 +102,15 @@ function proxy(path: string[], context: TContext): any {
                 );
             }
 
-            return proxy([...path, property], context);
+            if (property === 'invoke') {
+                return proxy([...path], context, stubFunc);
+            } else {
+                return proxy([...path, property], context);
+            }
         },
         apply(target, thisObject, args) {
             return new Promise((accept, reject) => {
-                const currentSeq = seq++;
+                const currentSeq = context.seq++;
 
                 const message: TInvokeMessage = {
                     __isTypedPostMessageRPCMessage__: true,
@@ -110,28 +122,17 @@ function proxy(path: string[], context: TContext): any {
                     args: args,
                 };
 
-                callbacks[currentSeq] = (response) => {
+                context.callbacks[currentSeq] = (response) => {
                     if (response.status === 'resolved') {
                         accept(response.returnValue);
                     } else if (response.status === 'rejected') {
                         reject(response.error);
                     }
 
-                    delete callbacks[currentSeq];
+                    delete context.callbacks[currentSeq];
                 };
 
-                if (
-                    typeof Window !== 'undefined' &&
-                    context.sendOn instanceof Window
-                ) {
-                    context.sendOn.postMessage(message, '*');
-                } else if (
-                    context.sendOn instanceof MessagePort ||
-                    context.sendOn instanceof Worker ||
-                    context.sendOn instanceof DedicatedWorkerGlobalScope
-                ) {
-                    context.sendOn.postMessage(message);
-                }
+                context.port.postMessage(message);
             });
         },
     });
@@ -166,135 +167,216 @@ function findProcedure(
     }
 }
 
-export function serve<ROUTES extends TRouter>(options: {
+export function serve<ROUTES extends TRouter>({
+    service,
+    on,
+    virtualPort = 80,
+    enforceOrigin = false,
+}: {
     service: TRootRouter<ROUTES>;
-    respondOn: Window | Worker | MessagePort | DedicatedWorkerGlobalScope;
-    receiveOn: Window | Worker | MessagePort | DedicatedWorkerGlobalScope;
+    on?: Window | DedicatedWorkerGlobalScope | MessagePort | Worker;
+    virtualPort?: number;
+    enforceOrigin?: false | [string, ...string[]];
 }) {
-    const listener: any = async (event: MessageEvent<any>) => {
-        if (
-            event.data?.__isTypedPostMessageRPCMessage__ &&
-            event.data.type === 'invoke'
-        ) {
-            const data: TInvokeMessage = event.data;
+    const resolvedOn = on
+        ? on
+        : typeof Window !== 'undefined' && self instanceof Window
+        ? window
+        : typeof DedicatedWorkerGlobalScope !== 'undefined' &&
+          self instanceof DedicatedWorkerGlobalScope
+        ? self
+        : null;
 
-            try {
-                const procedure = findProcedure(
-                    options.service.routes,
-                    data.path,
-                );
+    if (!resolvedOn) {
+        throw new Error(
+            'not window or worker scope, must provide postMessage() able port.',
+        );
+    }
 
-                const returnValue = procedure(...data.args);
+    const connectionListener: any = (message: MessageEvent<any>) => {
+        const validOrigin =
+            !enforceOrigin ||
+            enforceOrigin.some((origin) => message.origin.startsWith(origin));
 
-                const result =
-                    returnValue instanceof Promise
-                        ? await returnValue
-                        : returnValue;
+        if (!validOrigin) {
+            return;
+        }
 
-                const message: TResolveMessage = {
-                    __isTypedPostMessageRPCMessage__: true,
-                    type: 'resolve',
-                    seq: data.seq,
-                    returnValue: result,
-                };
-
-                if (
-                    typeof Window !== 'undefined' &&
-                    options.respondOn instanceof Window
-                ) {
-                    options.respondOn.postMessage(message, '*');
-                } else {
-                    options.respondOn.postMessage(message);
-                }
-            } catch (error) {
-                console.error(error);
-
-                const message: TRejectMessage = {
-                    __isTypedPostMessageRPCMessage__: true,
-                    type: 'reject',
-                    seq: data.seq,
-                    error: `${error}`,
-                };
-
-                if (
-                    typeof Window !== 'undefined' &&
-                    options.respondOn instanceof Window
-                ) {
-                    options.respondOn.postMessage(message, '*');
-                } else {
-                    options.respondOn.postMessage(message);
-                }
+        if ('__isTypedPostMessageRPCMessage__' in message.data) {
+            if (message.data.type !== 'connect') {
+                return;
             }
+
+            const data: TConnectMessage = message.data;
+
+            if (data.virtualPort !== virtualPort) {
+                return;
+            }
+
+            const port = message.ports[0];
+
+            port.onmessage = async (message) => {
+                if (message.data.type !== 'invoke') {
+                    return;
+                }
+
+                const data: TInvokeMessage = message.data;
+
+                const func = (() => {
+                    try {
+                        return findProcedure(service.routes, data.path);
+                    } catch {
+                        return undefined;
+                    }
+                })();
+
+                if (!func) {
+                    port.postMessage({
+                        __isTypedPostMessageRPCMessage__: true,
+                        type: 'reject',
+                        seq: data.seq,
+                        error: 'not-found',
+                    } as TRejectMessage);
+
+                    return;
+                }
+
+                try {
+                    const returnedValue = func(...data.args);
+
+                    const resolvedValue =
+                        returnedValue instanceof Promise
+                            ? await returnedValue
+                            : returnedValue;
+
+                    port.postMessage({
+                        __isTypedPostMessageRPCMessage__: true,
+                        type: 'resolve',
+                        seq: data.seq,
+                        returnValue: resolvedValue,
+                    } as TResolveMessage);
+                } catch (error) {
+                    port.postMessage({
+                        __isTypedPostMessageRPCMessage__: true,
+                        type: 'reject',
+                        seq: data.seq,
+                        error: `${error}`,
+                    } as TRejectMessage);
+                }
+            };
+
+            port.postMessage({
+                __isTypedPostMessageRPCMessage__: true,
+                type: 'connect',
+                virtualPort: virtualPort,
+            } as TConnectMessage);
         }
     };
 
-    options.receiveOn.addEventListener('message', listener);
+    resolvedOn.addEventListener('message', connectionListener);
 }
 
-export function consumer<ROUTER extends TRootRouter<TRouter>>() {
-    return {
-        connect(options: {
-            receiveOn:
-                | Window
-                | Worker
-                | MessagePort
-                | DedicatedWorkerGlobalScope;
+export async function connect<ROUTER extends TRootRouter<TRouter>>({
+    on,
+    virtualPort = 80,
+    enforceTargetOrigin = false,
+    timeout = 5_000,
+}: {
+    on: Window | Worker | MessagePort;
+    virtualPort?: number;
+    enforceTargetOrigin?: false | string;
+    timeout?: number;
+}): Promise<TRouted<ROUTER['routes']>> {
+    const channel = new MessageChannel();
+    const [port, transferablePort] = [channel.port1, channel.port2];
 
-            sendOn: Window | Worker | MessagePort | DedicatedWorkerGlobalScope;
-        }): TRouted<ROUTER['routes']> {
-            const context: TContext = {
-                receiveOn: options.receiveOn,
-                sendOn: options.sendOn,
-            };
+    const message: TConnectMessage = {
+        __isTypedPostMessageRPCMessage__: true,
+        type: 'connect',
+        virtualPort: virtualPort,
+    };
 
-            if (!registeredListeners.has(options.receiveOn)) {
-                const listener: any = (event: MessageEvent) => {
-                    if (event.data?.__isTypedPostMessageRPCMessage__) {
-                        const data:
-                            | TInvokeMessage
-                            | TResolveMessage
-                            | TRejectMessage = event.data;
+    const event = Event.create<boolean>();
 
-                        if (data.type !== 'resolve' && data.type !== 'reject') {
-                            return;
-                        }
-
-                        const seq = data.seq;
-                        const callback = callbacks[seq];
-
-                        if (!callback) {
-                            return;
-                        }
-
-                        if (data.type === 'reject') {
-                            callback({
-                                status: 'rejected',
-                                error: data.error,
-                            });
-                        } else if (data.type === 'resolve') {
-                            callback({
-                                status: 'resolved',
-                                returnValue: data.returnValue,
-                            });
-                        }
-
-                        delete callbacks[seq];
-                    }
-                };
-
-                options.receiveOn.addEventListener('message', listener);
-
-                const previousRegistration = registeredListeners.get(
-                    options.receiveOn,
-                );
-
-                registeredListeners.set(options.receiveOn, {
-                    consumer: true,
-                    service: previousRegistration?.service ?? false,
-                });
+    port.onmessage = (message: MessageEvent<any>) => {
+        if ('__isTypedPostMessageRPCMessage__' in message.data) {
+            if (message.data.type !== 'connect') {
+                return;
             }
 
-            return proxy([], context);
-        },
+            const data: TConnectMessage = message.data;
+
+            if (data.virtualPort !== virtualPort) {
+                return;
+            }
+
+            event.post(true);
+
+            port.onmessage = (message: MessageEvent<any>) => {
+                if ('__isTypedPostMessageRPCMessage__' in message.data) {
+                    if (message.data.type === 'resolve') {
+                        const data: TResolveMessage = message.data;
+
+                        const callback = context.callbacks[data.seq];
+
+                        if (!callback) {
+                            throw new Error(
+                                'received response to a request that was not sent',
+                            );
+                        }
+
+                        callback({
+                            status: 'resolved',
+                            returnValue: data.returnValue,
+                        });
+                    } else if (message.data.type === 'reject') {
+                        const data: TRejectMessage = message.data;
+
+                        const callback = context.callbacks[data.seq];
+
+                        if (!callback) {
+                            throw new Error(
+                                'received response to a request that was not sent',
+                            );
+                        }
+
+                        callback({
+                            status: 'rejected',
+                            error: data.error,
+                        });
+                    }
+                }
+            };
+        }
     };
+
+    if (typeof Window !== 'undefined' && on instanceof Window) {
+        if (enforceTargetOrigin) {
+            on.postMessage(message, enforceTargetOrigin, [transferablePort]);
+        } else {
+            on.postMessage(message, '*', [transferablePort]);
+        }
+    } else if (on instanceof Worker || on instanceof MessagePort) {
+        on.postMessage(message, [transferablePort]);
+    }
+
+    setTimeout(() => {
+        event.post(false);
+    }, timeout);
+
+    const success = await event.waitFor();
+
+    if (!success) {
+        throw new Error('timeout, could not connect');
+    }
+
+    const context: TContext = {
+        virtualPort: virtualPort,
+        on: on,
+        seq: 0,
+        callbacks: {},
+        port: port,
+    };
+
+    return proxy([], context);
 }

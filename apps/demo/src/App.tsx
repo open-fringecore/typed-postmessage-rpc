@@ -1,20 +1,18 @@
 import {useEffect} from 'react';
-import {consumer} from 'typed-postmessage-rpc';
+import {connect} from 'typed-postmessage-rpc';
 import {MainServiceType} from './service.mjs';
 import {worker} from './workerManager.mjs';
 
 function MainForm() {
     useEffect(() => {
-        const mainClient = consumer<MainServiceType>().connect({
-            sendOn: worker,
-            receiveOn: worker,
-        });
+        (async () => {
+            const client = await connect<MainServiceType>({
+                on: worker,
+            });
 
-        // console.log(mainClient);
-
-        mainClient.hello('Omran').then((result) => {
+            const result = await client.helloSync.invoke('Omran');
             console.log(result);
-        });
+        })();
     }, []);
 
     return <div></div>;
