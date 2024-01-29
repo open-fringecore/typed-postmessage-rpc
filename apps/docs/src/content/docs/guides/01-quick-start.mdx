@@ -1,0 +1,57 @@
+---
+title: Quick Start
+description: Let's goooooooooo.
+---
+
+import { Code } from '@astrojs/starlight/components';
+import helloServiceSource from '../../../source-code/hello-service.mts?raw';
+import basicWorkerSource from '../../../source-code/basic-worker.mts?raw';
+import basicIndexSource from '../../../source-code/basic-index.mts?raw';
+import basicClientSource from '../../../source-code/basic-client.mts?raw';
+import basicInvokeSource from '../../../source-code/basic-invoke.mts?raw';
+
+Let's get up and running with using `typed-postmessage-rpc` to start a server inside a worker, and 
+access its services from the main script.
+
+## Assumptions
+
+1. We are assuming you are using frontend tooling similar to [vite](https://vitejs.dev/), hence when we show something too vite-specific; do adapt it to your tooling of choice.
+2. We are assuming you're using TypeScript (duhh).
+
+## Installation
+
+Let's start by installing the package.
+
+```bash
+pnpm install --save-exact typed-postmessage-rpc
+```
+
+## Define a Service
+
+Here we are defining a service endearingly named `helloService` that has a function called `hello` that
+takes a name as the first argument and returns the string `Hello {name}!`
+
+<Code code={helloServiceSource} lang="typescript" title="service.mts" />
+
+## Define a Worker
+
+It really is that simple.
+
+<Code code={basicWorkerSource} lang="typescript" title="worker.mts" />
+
+## Start Worker
+
+<Code code={basicIndexSource} lang="typescript" title="index.mts" />
+
+## Connect Client
+
+<Code code={basicClientSource} lang="typescript" title="index.mts" />
+
+## Invoke `hello(name: string)`
+
+<Code code={basicInvokeSource} lang="typescript" title="index.mts" />
+
+## Done ✅
+
+This was an example using workers, but feel free to explore [iFrames](/contexts/01-iframes/),
+[windows](/contexts/04-windows/) or [shared workers](/contexts/03-shared-workers/) next.

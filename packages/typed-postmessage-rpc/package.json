@@ -37,5 +37,9 @@
     },
     "dependencies": {
         "evt": "2.5.7"
+    },
+    "repository": {
+        "url": "https://github.com/open-fringecore/typed-postmessage-rpc",
+        "type": "git"
     }
 }
