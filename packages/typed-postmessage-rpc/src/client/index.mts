@@ -175,11 +175,13 @@ export async function connect<ROUTER extends TRootRouter<TRouter>>({
         }
     };
 
-    if (typeof Window !== 'undefined' && on instanceof Window) {
+    if (typeof window !== 'undefined' && (on as Window).window === on) {
         if (enforceTargetOrigin) {
-            on.postMessage(message, enforceTargetOrigin, [transferablePort]);
+            (on as Window).postMessage(message, enforceTargetOrigin, [
+                transferablePort,
+            ]);
         } else {
-            on.postMessage(message, '*', [transferablePort]);
+            (on as Window).postMessage(message, '*', [transferablePort]);
         }
     } else if (
         (typeof Worker !== 'undefined' && on instanceof Worker) ||

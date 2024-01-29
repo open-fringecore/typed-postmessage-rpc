@@ -7,9 +7,9 @@
     {
       "type": "chrome",
       "request": "launch",
-      "name": "Launch Chrome against localhost:4321",
-      "url": "http://localhost:4321",
-      "webRoot": "${workspaceFolder}/apps/demo"
+      "name": "iFrames",
+      "url": "http://localhost:4321/iframes/test",
+      "webRoot": "${workspaceFolder}"
     }
   ]
 }

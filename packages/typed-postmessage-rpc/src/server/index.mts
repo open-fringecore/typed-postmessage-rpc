@@ -188,4 +188,11 @@ export function serve<ROUTES extends TRouter>({
     };
 
     resolvedOn.addEventListener('message', connectionListener);
+
+    if (
+        typeof MessagePort !== 'undefined' &&
+        resolvedOn instanceof MessagePort
+    ) {
+        resolvedOn.start();
+    }
 }
