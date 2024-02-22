@@ -12,17 +12,17 @@ export type TInvokeMessage = {
     args: any[];
 };
 
-export type TObserveMessage = {
+export type TSubscribeMessage = {
     __isTypedPostMessageRPCMessage__: true;
-    type: 'observe';
+    type: 'subscribe';
     seq: number;
     path: string[];
     args: any[];
 };
 
-export type TDisposeObserveMessage = {
+export type TUnsubscribeMessage = {
     __isTypedPostMessageRPCMessage__: true;
-    type: 'dispose-observer';
+    type: 'unsubscribe';
     seq: number;
 };
 
@@ -32,6 +32,40 @@ export type TResolveMessage = {
 
     seq: number;
     returnValue: any;
+};
+
+export type TEmitNextMessage = {
+    __isTypedPostMessageRPCMessage__: true;
+    type: 'emit-next';
+
+    seq: number;
+    emit_seq: number;
+    emitValue: any;
+};
+
+export type TEmitErrorMessage = {
+    __isTypedPostMessageRPCMessage__: true;
+    type: 'emit-error';
+
+    seq: number;
+    emit_seq: number;
+    error: any;
+};
+
+export type TEmitCompleteMessage = {
+    __isTypedPostMessageRPCMessage__: true;
+    type: 'emit-complete';
+
+    seq: number;
+    emit_seq: number;
+};
+
+export type TEmitAcknowledgeMessage = {
+    __isTypedPostMessageRPCMessage__: true;
+    type: 'emit-ack';
+
+    seq: number;
+    emit_seq: number;
 };
 
 export type TRejectMessage = {

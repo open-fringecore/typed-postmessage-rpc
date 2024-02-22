@@ -11,7 +11,7 @@
     <title>typed-postmessage-rpc</title>
   </head>
   <body>
-    <h1>typed-postmessage-rpc: workers test</h1>
+    <h1>typed-postmessage-rpc: server cleanup test</h1>
     <script>
       import { serve } from "typed-postmessage-rpc/server";
       import { connect } from "typed-postmessage-rpc/client";
@@ -36,7 +36,17 @@
         on: worker,
       });
 
-      console.log(await client.hello.invoke("worker-parent"));
+      client.random.subscribe()({
+        onNext(value) {
+          console.log('client: received', value);
+        },
+        onError(error) {
+          console.error('client: error', error);
+        },
+        onComplete() {
+          console.log('client: complete');
+        },
+      });
     </script>
   </body>
 </html>

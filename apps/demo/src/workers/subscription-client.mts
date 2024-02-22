@@ -14,4 +14,8 @@ const client = await connect<ExampleServiceType>({
     on: self,
 });
 
-console.log(await client.hello.invoke('worker'));
+client.random.subscribe()({
+    onNext: (value) => {
+        console.log(value);
+    },
+});

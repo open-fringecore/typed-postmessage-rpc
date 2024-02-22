@@ -1,8 +1,8 @@
 import {serve} from 'typed-postmessage-rpc/server';
 import {
-    helloService,
-    type HelloServiceType,
-} from '../services/helloService.mjs';
+    exampleService,
+    type ExampleServiceType,
+} from '../services/exampleService.mjs';
 import {connect} from 'typed-postmessage-rpc/client';
 
 if (self instanceof SharedWorkerGlobalScope) {
@@ -10,11 +10,11 @@ if (self instanceof SharedWorkerGlobalScope) {
         const port = event.ports[0];
 
         serve({
-            service: helloService,
+            service: exampleService,
             on: port,
         });
 
-        const client = await connect<HelloServiceType>({
+        const client = await connect<ExampleServiceType>({
             on: port,
         });
 

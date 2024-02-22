@@ -19,16 +19,16 @@
             import {serve} from 'typed-postmessage-rpc/server';
             import {connect} from 'typed-postmessage-rpc/client';
             import {
-                type HelloServiceType,
-                helloService,
-            } from '../../services/helloService.mts';
+                type ExampleServiceType,
+                exampleService,
+            } from '../../services/exampleService.mts';
 
             const inner = document.getElementById('inner');
 
             if (inner && inner instanceof HTMLIFrameElement) {
                 inner.addEventListener('load', async () => {
                     if (inner.contentWindow) {
-                        const client = await connect<HelloServiceType>({
+                        const client = await connect<ExampleServiceType>({
                             on: inner.contentWindow,
                         });
 
@@ -38,7 +38,7 @@
             }
 
             serve({
-                service: helloService,
+                service: exampleService,
                 on: window,
             });
         </script>

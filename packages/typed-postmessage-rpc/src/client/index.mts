@@ -1,12 +1,16 @@
 import type {TRootRouter, TRouter} from '../types/server.mjs';
 
-import type {
+import {
     TConnectMessage,
-    TDisposeObserveMessage,
+    TUnsubscribeMessage,
+    TEmitNextMessage,
     TInvokeMessage,
-    TObserveMessage,
+    TSubscribeMessage,
     TRejectMessage,
     TResolveMessage,
+    TEmitAcknowledgeMessage,
+    TEmitErrorMessage,
+    TEmitCompleteMessage,
 } from '../types/messages.mjs';
 
 import type {TContext} from '../types/invocation-context.mjs';
@@ -27,17 +31,19 @@ function proxy(path: string[], context: TContext, stub: any = stubObj): any {
                 );
             }
 
-            if (property === 'invoke') {
-                return proxy([...path], context, stubFunc);
-            } else if (property === 'observe') {
+            if (property === 'subscribe') {
                 return (...args: any[]) => {
                     // HANDLER RECEIVER
-                    return (handler: (data: any) => void) => {
+                    return (options: {
+                        onNext?: (data: any) => void;
+                        onError?: (error: any) => void;
+                        onComplete?: () => void;
+                    }) => {
                         const currentSeq = context.seq++;
 
-                        const message: TObserveMessage = {
+                        const message: TSubscribeMessage = {
                             __isTypedPostMessageRPCMessage__: true,
-                            type: 'observe',
+                            type: 'subscribe',
 
                             seq: currentSeq,
 
@@ -47,7 +53,11 @@ function proxy(path: string[], context: TContext, stub: any = stubObj): any {
 
                         context.callbacks[currentSeq] = (response) => {
                             if (response.status === 'resolved') {
-                                handler(response.returnValue);
+                                options.onNext?.(response.returnValue);
+                            } else if (response.status === 'rejected') {
+                                options.onError?.(response.error);
+                            } else if (response.status === 'completed') {
+                                options.onComplete?.();
                             }
                         };
 
@@ -57,9 +67,9 @@ function proxy(path: string[], context: TContext, stub: any = stubObj): any {
                         return () => {
                             delete context.callbacks[currentSeq];
 
-                            const message: TDisposeObserveMessage = {
+                            const message: TUnsubscribeMessage = {
                                 __isTypedPostMessageRPCMessage__: true,
-                                type: 'dispose-observer',
+                                type: 'unsubscribe',
                                 seq: currentSeq,
                             };
 
@@ -67,36 +77,37 @@ function proxy(path: string[], context: TContext, stub: any = stubObj): any {
                         };
                     };
                 };
-            } else {
-                return proxy([...path, property], context);
+            } else if (property === 'invoke') {
+                return (...args: any[]) => {
+                    return new Promise((accept, reject) => {
+                        const currentSeq = context.seq++;
+
+                        const message: TInvokeMessage = {
+                            __isTypedPostMessageRPCMessage__: true,
+                            type: 'invoke',
+
+                            seq: currentSeq,
+
+                            path: path,
+                            args: args,
+                        };
+
+                        context.callbacks[currentSeq] = (response) => {
+                            if (response.status === 'resolved') {
+                                accept(response.returnValue);
+                            } else if (response.status === 'rejected') {
+                                reject(response.error);
+                            }
+
+                            delete context.callbacks[currentSeq];
+                        };
+
+                        context.port.postMessage(message);
+                    });
+                };
             }
-        },
-        apply(target, thisObject, args) {
-            return new Promise((accept, reject) => {
-                const currentSeq = context.seq++;
 
-                const message: TInvokeMessage = {
-                    __isTypedPostMessageRPCMessage__: true,
-                    type: 'invoke',
-
-                    seq: currentSeq,
-
-                    path: path,
-                    args: args,
-                };
-
-                context.callbacks[currentSeq] = (response) => {
-                    if (response.status === 'resolved') {
-                        accept(response.returnValue);
-                    } else if (response.status === 'rejected') {
-                        reject(response.error);
-                    }
-
-                    delete context.callbacks[currentSeq];
-                };
-
-                context.port.postMessage(message);
-            });
+            return proxy([...path, property], context);
         },
     });
 }
@@ -154,6 +165,48 @@ export async function connect<ROUTER extends TRootRouter<TRouter>>({
                             status: 'resolved',
                             returnValue: data.returnValue,
                         });
+                    } else if (
+                        message.data.type === 'emit-next' ||
+                        message.data.type === 'emit-error' ||
+                        message.data.type === 'emit-complete'
+                    ) {
+                        const data:
+                            | TEmitNextMessage
+                            | TEmitErrorMessage
+                            | TEmitCompleteMessage = message.data;
+
+                        const callback = context.callbacks[data.seq];
+
+                        if (!callback) {
+                            throw new Error(
+                                'received response to a request that was not sent',
+                            );
+                        }
+
+                        port.postMessage({
+                            __isTypedPostMessageRPCMessage__: true,
+                            type: 'emit-ack',
+                            seq: data.seq,
+                            emit_seq: data.emit_seq,
+                        } as TEmitAcknowledgeMessage);
+
+                        if (data.type === 'emit-next') {
+                            callback({
+                                status: 'resolved',
+                                returnValue: data.emitValue,
+                            });
+                        } else if (data.type === 'emit-error') {
+                            callback({
+                                status: 'rejected',
+                                error: data.error,
+                            });
+                        } else if (data.type === 'emit-complete') {
+                            delete context.callbacks[data.seq];
+
+                            callback({
+                                status: 'completed',
+                            });
+                        }
                     } else if (message.data.type === 'reject') {
                         const data: TRejectMessage = message.data;
 

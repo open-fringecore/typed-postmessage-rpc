@@ -5,13 +5,16 @@ export type TContext = {
         [key: number]: (
             response:
                 | {
-                status: 'resolved';
-                returnValue: any;
-            }
+                      status: 'resolved';
+                      returnValue: any;
+                  }
                 | {
-                status: 'rejected';
-                error: any;
-            },
+                      status: 'rejected';
+                      error: any;
+                  }
+                | {
+                      status: 'completed';
+                  },
         ) => void;
     };
     port: MessagePort;

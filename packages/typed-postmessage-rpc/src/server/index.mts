@@ -1,9 +1,14 @@
-import type {
+import {
     TConnectMessage,
+    TEmitNextMessage,
     TInvokeMessage,
-    TObserveMessage,
+    TSubscribeMessage,
     TRejectMessage,
     TResolveMessage,
+    TEmitErrorMessage,
+    TEmitCompleteMessage,
+    TEmitAcknowledgeMessage,
+    TUnsubscribeMessage,
 } from '../types/messages.mjs';
 
 import type {TProcedure, TRootRouter, TRouter} from '../types/server.mjs';
@@ -38,9 +43,12 @@ function findProcedure(
 }
 
 export type EmitterCleanupProcedure = () => void;
-export type Emitter<EMIT_TYPE extends any> = (
-    emit: (data: EMIT_TYPE) => void,
-) => EmitterCleanupProcedure;
+
+export type Emitter<EMIT_TYPE extends any> = (emit: {
+    next: (data: EMIT_TYPE) => void;
+    error: (error: any) => void;
+    complete: () => void;
+}) => EmitterCleanupProcedure;
 
 export class Observable<EMIT_TYPE extends any> {
     constructor(public emitter: Emitter<EMIT_TYPE>) {}
@@ -55,11 +63,13 @@ export function serve<ROUTES extends TRouter>({
     on,
     virtualPort = 80,
     enforceOrigin = false,
+    subscriptionCleanupTimeout,
 }: {
     service: TRootRouter<ROUTES>;
     on?: Window | DedicatedWorkerGlobalScope | MessagePort | Worker;
     virtualPort?: number;
     enforceOrigin?: false | [string, ...string[]];
+    subscriptionCleanupTimeout?: number;
 }) {
     const resolvedOn = on
         ? on
@@ -98,28 +108,54 @@ export function serve<ROUTES extends TRouter>({
 
             const port = message.ports[0];
 
+            const subscriptionTracker: {
+                [seq: number]: {
+                    [emit_seq: number]: {
+                        cleanupTimeout?: number;
+                    };
+                };
+            } = {};
+
             const cleanupProcedures: {
                 [key: number]: () => void;
             } = {};
 
             port.onmessage = async (message) => {
-                if (message.data.type === 'dispose-observer') {
-                    if (cleanupProcedures[message.data.seq]) {
-                        cleanupProcedures[message.data.seq]();
-                        delete cleanupProcedures[message.data.seq];
+                if (message.data.type === 'unsubscribe') {
+                    const m = message.data as TUnsubscribeMessage;
+
+                    if (cleanupProcedures[m.seq]) {
+                        cleanupProcedures[m.seq]();
+                        delete cleanupProcedures[m.seq];
                     }
 
                     return;
                 }
 
+                if (message.data.type === 'emit-ack') {
+                    const m = message.data as TEmitAcknowledgeMessage;
+
+                    if (
+                        m.seq in subscriptionTracker &&
+                        m.emit_seq in subscriptionTracker[m.seq]
+                    ) {
+                        clearTimeout(
+                            subscriptionTracker[m.seq][m.emit_seq]
+                                .cleanupTimeout,
+                        );
+
+                        delete subscriptionTracker[m.seq][m.emit_seq];
+                    }
+                }
+
                 if (
                     message.data.type !== 'invoke' &&
-                    message.data.type !== 'observe'
+                    message.data.type !== 'subscribe'
                 ) {
                     return;
                 }
 
-                const data: TInvokeMessage | TObserveMessage = message.data;
+                const data: TInvokeMessage | TSubscribeMessage = message.data;
 
                 const func = (() => {
                     try {
@@ -156,18 +192,64 @@ export function serve<ROUTES extends TRouter>({
                             returnValue: resolvedValue,
                         } as TResolveMessage);
                     } else {
+                        let emit_seq = 0;
                         const observable: Observable<any> = func(...data.args);
 
-                        cleanupProcedures[data.seq] = observable.emitter(
-                            (value: any) => {
+                        function makeMessage() {
+                            return {
+                                __isTypedPostMessageRPCMessage__: true,
+                                seq: data.seq,
+                                emit_seq: emit_seq,
+                            };
+                        }
+
+                        function scheduleCleanup() {
+                            if (!(data.seq in subscriptionTracker)) {
+                                subscriptionTracker[data.seq] = {};
+                            }
+
+                            subscriptionTracker[data.seq][emit_seq] = {
+                                cleanupTimeout: subscriptionCleanupTimeout
+                                    ? setTimeout(() => {
+                                          cleanupProcedures[data.seq]?.();
+                                          delete cleanupProcedures[data.seq];
+
+                                          delete subscriptionTracker[data.seq];
+                                      }, subscriptionCleanupTimeout)
+                                    : undefined,
+                            };
+                        }
+
+                        cleanupProcedures[data.seq] = observable.emitter({
+                            next: (value: any) => {
                                 port.postMessage({
-                                    __isTypedPostMessageRPCMessage__: true,
-                                    type: 'resolve',
-                                    seq: data.seq,
-                                    returnValue: value,
-                                } as TResolveMessage);
+                                    ...makeMessage(),
+                                    type: 'emit-next',
+                                    emitValue: value,
+                                } as TEmitNextMessage);
+
+                                scheduleCleanup();
+                                emit_seq++;
                             },
-                        );
+                            error: (error) => {
+                                port.postMessage({
+                                    ...makeMessage(),
+                                    type: 'emit-error',
+                                    error: error,
+                                } as TEmitErrorMessage);
+
+                                scheduleCleanup();
+                                emit_seq++;
+                            },
+                            complete: () => {
+                                cleanupProcedures[data.seq]();
+
+                                port.postMessage({
+                                    ...makeMessage(),
+                                    type: 'emit-complete',
+                                } as TEmitCompleteMessage);
+                            },
+                        });
                     }
                 } catch (error) {
                     port.postMessage({

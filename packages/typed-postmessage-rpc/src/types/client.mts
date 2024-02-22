@@ -9,9 +9,13 @@ export type TRouted<ROUTES extends TRouter> = {
               }
             : ReturnType<ROUTES[KEY]> extends Observable<infer EMIT_TYPE>
             ? {
-                  observe: (
+                  subscribe: (
                       ...args: Parameters<ROUTES[KEY]>
-                  ) => (listener: (data: EMIT_TYPE) => void) => () => void;
+                  ) => (options: {
+                      onNext?: (data: EMIT_TYPE) => void;
+                      onError?: (error: any) => void;
+                      onComplete?: () => void;
+                  }) => () => void;
               }
             : {
                   invoke: (

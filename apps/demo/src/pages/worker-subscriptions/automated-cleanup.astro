@@ -11,7 +11,7 @@
     <title>typed-postmessage-rpc</title>
   </head>
   <body>
-    <h1>typed-postmessage-rpc: workers test</h1>
+    <h1>typed-postmessage-rpc: automated cleanup test</h1>
     <script>
       import { serve } from "typed-postmessage-rpc/server";
       import { connect } from "typed-postmessage-rpc/client";
@@ -21,7 +21,7 @@
       } from "../../services/exampleService.mts";
 
       const worker = new Worker(
-        new URL("../../workers/worker.mts", import.meta.url),
+        new URL("../../workers/subscription-client.mts", import.meta.url),
         {
           type: "module",
         }
@@ -30,13 +30,12 @@
       serve({
         service: exampleService,
         on: worker,
+        subscriptionCleanupTimeout: 1000
       });
 
-      const client = await connect<ExampleServiceType>({
-        on: worker,
-      });
-
-      console.log(await client.hello.invoke("worker-parent"));
+      setTimeout(() => {
+          worker.terminate();
+      }, 4000);
     </script>
   </body>
 </html>

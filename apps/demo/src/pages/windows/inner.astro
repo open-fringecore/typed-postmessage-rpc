@@ -16,16 +16,16 @@
             import {serve} from 'typed-postmessage-rpc/server';
             import {connect} from 'typed-postmessage-rpc/client';
             import {
-                type HelloServiceType,
-                helloService,
-            } from '../../services/helloService.mts';
+                type ExampleServiceType,
+                exampleService,
+            } from '../../services/exampleService.mts';
 
             serve({
-                service: helloService,
+                service: exampleService,
                 on: window,
             });
 
-            const client = await connect<HelloServiceType>({
+            const client = await connect<ExampleServiceType>({
                 on: window.parent,
             });
 

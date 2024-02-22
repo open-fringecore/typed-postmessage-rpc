@@ -17,9 +17,9 @@
             import {serve} from 'typed-postmessage-rpc/server';
             import {connect} from 'typed-postmessage-rpc/client';
             import {
-                type HelloServiceType,
-                helloService,
-            } from '../../services/helloService.mts';
+                type ExampleServiceType,
+                exampleService,
+            } from '../../services/exampleService.mts';
 
             const worker = new SharedWorker(
                 new URL('../../workers/shared.mts', import.meta.url),
@@ -29,13 +29,13 @@
             );
 
             serve({
-                service: helloService,
+                service: exampleService,
                 on: worker.port,
             });
 
             worker.port.start();
 
-            const client = await connect<HelloServiceType>({
+            const client = await connect<ExampleServiceType>({
                 on: worker.port,
             });
 

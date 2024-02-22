@@ -1,6 +1,7 @@
 ---
 title: Quick Start
 description: Let's goooooooooo.
+slug: quickstart
 ---
 
 import { Code } from '@astrojs/starlight/components';
@@ -45,13 +46,24 @@ It really is that simple.
 
 ## Connect Client
 
-<Code code={basicClientSource} lang="typescript" title="index.mts" />
+<Code code={basicClientSource} lang="typescript" title="index.mts" ins={"{2, 8-10}"}/>
 
 ## Invoke `hello(name: string)`
 
-<Code code={basicInvokeSource} lang="typescript" title="index.mts" />
+<Code code={basicInvokeSource} lang="typescript" title="index.mts" ins={"{12}"} mark={"{14}"} />
 
-## Done ✅
+## Done
 
-This was an example using workers, but feel free to explore [iFrames](/contexts/01-iframes/),
-[windows](/contexts/04-windows/) or [shared workers](/contexts/03-shared-workers/) next.
+You should be seeing the following on your console:
+
+```
+Hello RPC!
+```
+
+## Next Steps
+
+The cool thing is, the opposite would also work. You could very-well serve a service on the main script,
+and then connect to it from a client running inside the worker. Check out the [Web Workers](/contexts/workers) section for more.
+
+This was an example using workers, but feel free to explore [iFrames](/contexts/iframes/),
+[windows](/contexts/windows/) or [shared workers](/contexts/shared-workers/) next.
